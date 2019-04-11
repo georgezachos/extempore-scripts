@@ -1,0 +1,57 @@
+;; load the instruments file
+(sys:load "libs/core/instruments.xtm")
+
+;; define a synth using the provided component fmsynth
+(make-instrument synth fmsynth)
+
+;; add the instrument to the DSP output sink closure
+(bind-func dsp:DSP
+  (lambda (in time chan dat)
+    (synth in time chan dat)))
+
+(dsp:set! dsp)
+
+(define l1
+  (lambda (beat dur cell)
+    (play synth (car cell) (cosr 90 10 2) (* dur .2)) ; 0.1 10.0)
+    (callback (*metro* (+ beat (* dur .5))) 'l1
+              (+ beat dur)
+              dur
+              (rotate cell 1))))
+
+;; play a note on our synth
+(play-note (now) synth (random 60 80) 80 (* 1.0 *second*))
+(l1 (*metro* 'get-beat 4) 1/4 '(60 63 62 67 72 65 84 77 65 67)) ;; start one playing quavers
+
+(define (nth n lst)
+  (car (rotate lst (* -1 n))))
+
+(define (randchoose lst)
+  (nth (random (length lst)) lst))
+
+(nth 1 '(1 2 3))
+
+(hilbert 1)
+(uniquely (hilbert 3))
+
+(define l2
+  (lambda (beat durs cell)
+    (play synth (car cell) (cosr 70 40 40) (* (car durs) .9)) ; 0.1 10.0)
+    (callback (*metro* (+ beat (* (car durs) .1))) 'l2
+              (+ beat (car durs))
+              (rotate durs 1)
+              (rotate cell 1))))
+
+(define *metro* (make-metro 190))
+
+(l2 (*metro* 'get-beat 4) '(1/4 1/2) '(60 63 62 67 72 65 84 77 65 67))
+
+(l2 (*metro* 'get-beat 4) (subst_lst '(1/1 1/2 1/3 1/5 2/3) (uniquely (hilbert 4)) (hilbert 4)) '(60))
+
+(l2 (*metro* 'get-beat 4)
+    (subst_lst '(1/1 1/2 1/3 1/4 1.5) (uniquely (hilbert 1)) (hilbert 1))
+    (subst_lst '(60 67 48 36 72) (uniquely (hilbert 1)) (hilbert 1)))
+
+(uniquely (hilbert 0))
+
+(play kit 1 80 10)
