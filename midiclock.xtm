@@ -1,0 +1,107 @@
+;; useful
+(define *beats-per-bar* (lambda () 4))
+(define *next-bar* (lambda () (*metro* 'get-beat (*beats-per-bar*))))
+
+; init MIDI & create a stream for my Ableton IAC device
+(sys:load "libs/external/portmidi.xtm")
+(pm_initialize)
+(pm_print_devices)
+
+(define *midi-out* (pm_create_output_stream 4))
+;; (define *midi-out* (pm_create_output_stream
+;;                     (pm_output_device_with_name "IA60 C Driver Bus 1")))
+
+;; TR wrapper around pm_send
+(define (send-midi-message time stream type chan a b)
+  (callback time (lambda ()
+                   (pm_send stream type chan a b))))
+
+;; a touch of global state
+(define *midi-clock-state* #f)
+
+;; Midi sync
+(define (*midi-clock* beat)
+  ;; (println '*midi-clock* beat)
+  (dotimes (frame 24)
+    (send-midi-message (*metro* (+ beat (/ frame 24))) *midi-out* *midi-timiing-clock* 0 0 0))
+  (if *midi-clock-state* (callback (*metro* (+ beat 12/24)) '*midi-clock* (+ beat 1))))
+
+(define (*mstart* beat)
+  (set! *midi-clock-state* #t)
+  (send-midi-message (*metro* beat) *midi-out* *midi-song-position* 0 0 0)
+  (send-midi-message (*metro* beat) *midi-out* *midi-start* 0 0 0)
+  (*midi-clock* beat))
+
+(define (*mstop* beat)
+  (send-midi-message (*metro* beat) *midi-out* *midi-stop* 0 0 0)
+  (callback (*metro* beat)
+            (lambda ()
+              (set! *midi-clock-state* #f))))
+
+(*mstart* (*next-bar*))
+(*mstop* (*next-bar*))
+
+;;              time  stream     pitch          velocity       duration channel
+(play-midi-note (now) *midi-out* (random 60 72) (random 60 90) 44100    0)
+
+(define lsys-midi
+  (lambda (beat durs cell ch)
+    (mplay *midi-out* (car cell) 80 (* (car durs) .9) ch) ; 0.1 10.0)
+    (callback (*metro* (+ beat (* (car durs) .1))) 'lsys-midi
+              (+ beat (car durs))
+              (rotate durs 1)
+              (rotate cell 1)
+              ch)))
+
+(lsys-midi (*metro* 'get-beat 4)
+    (lsys-sub dragon 5 '(1 2 3 2 1.5))
+    (lsys-sub dragon 5 (map (lambda (x) (+ x 12)) '(60 28 48 36 72)))
+    0)
+
+(lsys-midi (*metro* 'get-beat 4)
+    (lsys-sub twig 4 '(1/1 1/2 1/3 2 2/3 3/2))
+    (lsys-sub twig 4 '(60 67 48 36 72 30))
+    0)
+
+(uniquely (cool1 4))
+
+(lsys-midi (*metro* 'get-beat 4)
+    (lsys-sub dragon 6 '(1 2 3 4 1.5))
+    (lsys-sub dragon 6 (map (lambda (x) (+ x 0)) '(60 67 48 36 72)))
+    2)
+
+(map (lambda (x) (+ x 12)) '(1 2 3 4))
+
+(define *metro* (make-metro 110))
+; comment ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define test
+  (lambda (last-now last-clock)
+      (println (- (now) last-now) (- (clock:clock) last-clock))
+      (callback (+ (now) 22050) 'test (now) (clock:clock))))
+
+(test 0 0.0)
+
+(define test
+  (lambda (last-now last-clock)
+    (println (- (now) last-now) (- (clock:clock) last-clock))
+    (let ((c (clock:clock)))
+      (dotimes (i 5)
+        (dotill (> (clock:clock) (+ c (/ i 10000.0)))
+                (dotimes (i 1000) (* 1 1))) ;; busy work
+        (println i (clock:clock))))
+    (callback (now) 'test (now) (clock:clock))))
+
+(test 0 0.0)
+
+;; xtlang
+($ (let ((t (clock_clock)))
+     (doloop (i 1000000)
+       (* 1 2 3 4 5))
+     (println (- (clock_clock) t))))
+;; scheme
+(let ((t (clock:clock)))
+  (dotimes (i 1000000)
+    (* 1 2 3 4 5))
+  (println (- (clock:clock) t)))
+
