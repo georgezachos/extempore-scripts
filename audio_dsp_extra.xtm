@@ -25,8 +25,8 @@
 
 (bind-func outminusin
   (lambda (x:SAMPLE thresh:SAMPLE ratio:SAMPLE)
-      ;; (* (max (- x thresh) 0.0) (- (/ 1.0 ratio) 1.0))))
-      (* (max (- x (- 0. thresh)) 0.0) (- (/ 1.0 ratio) 1.0))))
+    ;; (* (max (- x thresh) 0.0) (- (/ 1.0 ratio) 1.0))))
+    (* (max (- x (- 0. thresh)) 0.0) (- (/ 1.0 (max ratio 1.0)) 1.0))))
 
 (bind-func comp_gain_c
   (lambda ()
