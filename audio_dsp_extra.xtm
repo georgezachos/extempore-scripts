@@ -1,0 +1,48 @@
+(sys:load "libs/core/audio_dsp.xtm")
+
+;; ported from FAUST libraries
+;; https://faust.grame.fr/
+
+(bind-func tau2pole
+  (lambda (tau:SAMPLE)
+    (exp (/ -1.0 (* tau SAMPLERATE)))))
+
+(bind-func smooth_c
+  (lambda ()
+    (let ((y 0.0))
+        (lambda (x:SAMPLE s:SAMPLE)
+          (set! y (+ (* x (- 1.0 s)) (* y s)))
+          y))))
+
+(bind-func amp_follower_ar_c
+  (lambda ()
+    (let ((y1 0.0)
+          (smooth (smooth_c)))
+      (lambda (x atk:SAMPLE rel:SAMPLE)
+        (let ((x_abs (fabs x)))
+          (set! y1 (smooth x_abs (if (> y1 x_abs) (tau2pole atk) (tau2pole rel))))
+          y1)))))
+
+(bind-func outminusin
+  (lambda (x:SAMPLE thresh:SAMPLE ratio:SAMPLE)
+      ;; (* (max (- x thresh) 0.0) (- (/ 1.0 ratio) 1.0))))
+      (* (max (- x (- 0. thresh)) 0.0) (- (/ 1.0 ratio) 1.0))))
+
+(bind-func comp_gain_c
+  (lambda ()
+    (let ((y 0.0)
+          (smooth (smooth_c))
+          (amp_follower_ar (amp_follower_ar_c)))
+      (lambda (x atk:SAMPLE rel:SAMPLE thresh:SAMPLE ratio:SAMPLE)
+        (let ((env (amp_follower_ar x atk rel))
+              (outminusindb (outminusin (amp2db env) thresh ratio))
+              (knee (smooth outminusindb (tau2pole (/ atk 2.0)))))
+          (set! y (db2amp knee) ) )))))
+
+(bind-func comp_mc_mono_c
+  (lambda (channels:i64)
+    (let ((comp_gains:[SAMPLE,SAMPLE,SAMPLE,SAMPLE,SAMPLE,SAMPLE]** (alloc channels))
+          (i:i64 0))
+      (dotimes (i channels) (pset! comp_gains i (comp_gain_c)))
+      (lambda(chan:i64 x:SAMPLE atk:SAMPLE rel:SAMPLE thresh:SAMPLE ratio:SAMPLE)
+        (* x ((pref comp_gains chan) x atk rel thresh ratio))))))
